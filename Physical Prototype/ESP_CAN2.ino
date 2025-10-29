@@ -1,5 +1,5 @@
 /**
- * @file esp32_can_motor_control.ino
+ * @file ESP_CAN2.ino
  * @author Zameer Mahomed
  * @brief ESP32 Sketch for CANopen motor control, refactored for high-performance multi-tasking.
  * @version 4.1 
@@ -61,7 +61,7 @@ void IRAM_ATTR onLimitSwitch2() {
   portEXIT_CRITICAL_ISR(&mux);
 }
 
-// --- GLOBAL HELPER FUNCTIONS ---
+// --- GLOBAL HELPER FUNCTIONS --- to send and recieve can 
 
 void sendCANMessage(uint32_t id, uint8_t dlc, const uint8_t *data, TickType_t timeout) {
     twai_message_t message;
@@ -113,7 +113,7 @@ void checkSerialInput() {
 
 // --- TASKS ---
 
-// Task for reading the ADC via I2S DMA (runs on Core 0)
+// Task for reading the ADC via I2S DMA (runs on Core 0) - faster read speed than analog read upa to 50Hz
 void adcReadTask(void *parameter) {
   uint16_t i2s_read_buff[1024];
   size_t bytes_read;
@@ -142,7 +142,7 @@ void canBusTask(void *parameter) {
   }
 }
 
-// Task for all Serial communication with MATLAB/Simulink (runs on Core 0)
+// Task for all Serial communication with MATLAB/Simulink (runs on Core 0) - transmit every interval
 void matlabCommTask(void *parameter) {
     const TickType_t loopPeriod = pdMS_TO_TICKS(20); // 50 Hz
     TickType_t lastWakeTime = xTaskGetTickCount();
@@ -181,7 +181,7 @@ void matlabCommTask(void *parameter) {
 }
 
 
-// --- SETUP ---
+// initilaisation rroutines
 void setup() {
   Serial.begin(115200);
   while (!Serial);
@@ -210,7 +210,16 @@ void setup() {
     while (1);
   }
 
-  // --- Run Motor Startup Commands ---
+  // --- Run Motor Startup Commands ---> from data sheet
+  //need to tell motor to set up in position mode then set 
+/*
+1. motor startup mode
+2. postion control mode
+3. Set speed torque profile
+4. Electronic gearbox ratio to 1
+5. configure to recieve current feedbaxk as SDO
+6. Enable drive and strat ontrol
+*/
   Serial.println("\n--- Starting Motor Configuration Sequence ---");
   uint8_t cmd_tpdo1_type[]={0x2F,0x00,0x18,0x02,0x01,0x00,0x00,0x00}; sendCANMessage(SDO_TX_ID,8,cmd_tpdo1_type, pdMS_TO_TICKS(1000));
   delay(20);
@@ -237,7 +246,7 @@ void setup() {
   xTaskCreatePinnedToCore(canBusTask, "CAN Bus", 4096, NULL, 10, NULL, 1); // Highest priority
 }
 
-// The main loop is no longer used.
+// The main loop is no longer used - faster operation
 void loop() {
   vTaskDelete(NULL);
 }
